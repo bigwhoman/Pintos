@@ -200,7 +200,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, char **tokens, int token_count);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -213,6 +213,39 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
+  
+  char *saveptr;
+  char *token = strtok_r(file_name, " ", &saveptr);	
+  char** tokens = NULL;
+  int token_count = 0;
+  while(token != NULL) {
+      // Allocate memory for the new token
+      tokens = realloc(tokens, sizeof(char*) * (token_count + 1));
+      if (tokens == NULL) {
+          // printf(stderr, "Memory allocation failed\n");
+          return 1;
+      }
+
+      // Calculate the length of the token
+      size_t length = strlen(token) + 1; // +1 for the null terminator
+
+      // Allocate memory for the token string and copy it
+      tokens[token_count] = malloc(length * sizeof(char));
+      if (tokens[token_count] == NULL) {
+          // printf(stderr, "Memory allocation failed\n");
+          return 1;
+      }
+      strlcpy(tokens[token_count], token, length);
+
+      token_count++;
+
+      // Get the next token
+      token = strtok_r(NULL, " ", &saveptr);
+  }
+
+  // printf("tokens ---> %s  ----  %s\n",tokens[0],tokens[1]);
+
+
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -227,10 +260,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (tokens[0]);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", tokens[0]);
       goto done;
     }
 
@@ -243,7 +276,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", tokens[0]);
       goto done;
     }
 
@@ -307,7 +340,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, tokens, token_count))
     goto done;
 
   /* Start address. */
@@ -432,21 +465,58 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp)
+setup_stack (void **esp, char **tokens, int token_count)
 {
+
+  // printf("chokens ---> %s  ----  %s\n",tokens[0],tokens[1]);
   uint8_t *kpage;
   bool success = false;
-
+  char * addresses[token_count];
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-	/* the stack pointer should point to the first address of the page
-	   which is (0xc0000000 - 1)  but since the _start function 
-	   has 3 arguments we start from 0xbfffffff - 0x1c in that page so that $esp does not read from  non-allocated areas
-	 */
-        *esp = ((uint8_t *)PHYS_BASE) - 1 -  0x10;
+      if (success){
+        *esp = ((uint8_t *)PHYS_BASE);
+        for(int i = token_count - 1 ; i >= 0 ; i--){
+          size_t length = strlen(tokens[i]) + 1; // +1 for the null terminator
+          *esp -= strlen(tokens[i]) + 1;
+          addresses[i] = (char *)(*esp);
+          char *ptr = (char *) (*esp);
+          strlcpy(ptr, tokens[i], length);   
+        }
+        // stack align
+        *esp -= 1;
+        uint8_t *ptr = (uint8_t *)(*esp);
+        *ptr = 0;
+
+        // null argv
+        *esp -= sizeof(char *);
+        *(char *)(*esp) = 0;
+        
+        
+
+        for(int i = token_count - 1 ; i >= 0 ; i--){
+          *esp -= sizeof(char *);
+          *(char **)(*esp) = addresses[i];  
+        }
+
+        
+       //argv
+        *esp -= sizeof(char *);
+        char ** str = (char **)(*esp );
+        *str = *esp + sizeof(char *);
+
+        *esp -= sizeof(int);
+        *(int *)(*esp) = token_count;
+
+        *esp -= sizeof(void *);
+        *(void **)(*esp) = 0;
+
+        while(*(uint8_t *)esp % 16 != 12)
+          *(uint8_t *)esp -= 1;
+        
+      }
       else
         palloc_free_page (kpage);
     }
