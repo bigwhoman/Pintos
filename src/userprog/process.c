@@ -486,7 +486,7 @@ setup_stack (void **esp, char **tokens, int token_count)
           strlcpy(ptr, tokens[i], length);   
         }
         // stack align
-        *esp -= 1;
+        *esp -= sizeof(uint8_t);
         uint8_t *ptr = (uint8_t *)(*esp);
         *ptr = 0;
 
@@ -513,8 +513,7 @@ setup_stack (void **esp, char **tokens, int token_count)
         *esp -= sizeof(void *);
         *(void **)(*esp) = 0;
 
-        while(*(uint8_t *)esp % 16 != 12)
-          *(uint8_t *)esp -= 1;
+        *(int *)*esp = *(int *)(*esp) & (~(16-1));
         
       }
       else
