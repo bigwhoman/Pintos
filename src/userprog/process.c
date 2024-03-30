@@ -486,9 +486,18 @@ setup_stack (void **esp, char **tokens, int token_count)
           strlcpy(ptr, tokens[i], length);   
         }
         // stack align
-        *esp -= sizeof(uint8_t);
-        uint8_t *ptr = (uint8_t *)(*esp);
-        *ptr = 0;
+
+        
+        unsigned int align_size = (unsigned int) *esp % 4;
+        *esp -= align_size;
+        memset(*esp, 0x00, align_size);
+        
+        // *esp = *(int *)(*esp) & (~(16-1));
+        
+        
+        // *esp -= sizeof(uint8_t);
+        // uint8_t *ptr = (uint8_t *)(*esp);
+        // *ptr = 0;
 
         // null argv
         *esp -= sizeof(char *);
@@ -501,6 +510,9 @@ setup_stack (void **esp, char **tokens, int token_count)
           *(char **)(*esp) = addresses[i];  
         }
 
+        // align_size = ((unsigned int) *esp % );
+        // *esp -= align_size;
+        // memset (*esp, 0xbb, align_size);
         
        //argv
         *esp -= sizeof(char *);
@@ -509,11 +521,11 @@ setup_stack (void **esp, char **tokens, int token_count)
 
         *esp -= sizeof(int);
         *(int *)(*esp) = token_count;
-
+        
         *esp -= sizeof(void *);
         *(void **)(*esp) = 0;
 
-        *(int *)*esp = *(int *)(*esp) & (~(16-1));
+        // *(int *)*esp = *(int *)(*esp) & (~(16-1));
         
       }
       else
