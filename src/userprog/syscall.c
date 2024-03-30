@@ -24,7 +24,7 @@ syscall_handler (struct intr_frame *f UNUSED)
    * include it in your final submission.
    */
 
-  /* printf("System call number: %d\n", args[0]); */
+  //  printf("System call number: %d\n", args[0]); 
 
   if (args[0] == SYS_EXIT)
     {
@@ -32,4 +32,7 @@ syscall_handler (struct intr_frame *f UNUSED)
       printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
       thread_exit ();
     }
+  else if (args[0] == SYS_PRACTICE) {
+    f -> eax = args[1] + 1;
+  }
 }
