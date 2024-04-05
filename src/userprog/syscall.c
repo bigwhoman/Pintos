@@ -4,6 +4,10 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "devices/shutdown.h"
+#include "lib/kernel/console.h"
+
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
 
 static void syscall_handler (struct intr_frame *);
 
@@ -38,5 +42,17 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
   else if (args[0] == SYS_HALT) {
       shutdown_power_off();
+  }
+  else if (args[0] == SYS_WRITE) {
+      int fd = args[1];
+      char * buffer = (char *)(void *)args[2];
+      uint32_t size = args[3];
+      if (fd == STDOUT_FILENO) {
+        putbuf(buffer, size);
+      } else if (fd == STDIN_FILENO){
+        // pass 
+      } else {
+
+      }
   }
 }
